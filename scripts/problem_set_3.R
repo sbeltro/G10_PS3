@@ -680,3 +680,81 @@ test <- test %>%
   mutate(terrazaPatio = ifelse(is.na(terrazaPatio) == T, 
                                yes = 0,
                                no = 1))
+
+# * Imputar valores faltantes con informacion de las manzanas del DANE ----
+sf_use_s2(FALSE)
+
+test_bog = st_join(x = test, y = mnz_bog_f)
+test_bog_med = st_join(x = test_bog, y = mnz_med_f)
+
+test_bog_med <- test_bog_med %>% 
+  mutate(MANZ_CCNCT = ifelse(l3 == "Bogotá D.C", 
+                             yes = MANZ_CCNCT_b,
+                             no = MANZ_CCNCT_m))
+
+test_bog_med = test_bog_med %>%
+  group_by(MANZ_CCNCT) %>%
+  mutate(surface_2 = median(surface, na.rm = T),
+         bathrooms_2 = median(bathrooms_f, na.rm = T))
+
+base_test <- as_tibble(test_bog_med)
+
+# Imputar valores faltantes
+base_test <- base_test %>% 
+  mutate(surface_f2 = ifelse(is.na(surface) == T, 
+                             yes = surface_2,
+                             no = surface),
+         bathrooms_f2 = ifelse(is.na(bathrooms_f) == T, 
+                               yes = bathrooms_2,
+                               no = bathrooms_f))
+
+# Base final (Version 1) 
+table(is.na(base_test$surface_f2))
+table(is.na(base_test$bathrooms_f2))
+
+# Imputar valores faltantes y obtener base final 
+test_final <- base_test %>% 
+  mutate(surface_final = ifelse(is.na(surface_f2) == T, 
+                                yes = median(surface_f2, na.rm = TRUE),
+                                no = surface_f2),
+         bathrooms_final = ifelse(is.na(bathrooms_f2) == T, 
+                                  yes = median(bathrooms_f2, na.rm = TRUE),
+                                  no = bathrooms_f2))
+
+table(is.na(test_final$surface_final))
+table(is.na(test_final$bathrooms_final))
+
+test_final <- st_as_sf(test_final,
+                       crs = 4326)
+
+
+# Generar nuevas variables de Open Street Map ---- 
+# * Variable de Universidades ----
+#  1.1 Bogota 
+# Crear un objeto de OSM que contega las universidades (incluyendo institutos tecnicos) dentro del poligono de Chapinero 
+osm_unibogt = opq(bbox = getbb("UPZs Localidad Chapinero")) %>%
+  add_osm_feature(key = "amenity", value = "university")
+
+# Extraer del objeto los features de universidades (id, nombre y amenity) y guardar los poligonos en nuevo objeto
+osm_unibogt_sf = osm_unibogt %>% osmdata_sf()
+uni_bogt = osm_unibogt_sf$osm_polygons %>% select(osm_id, name, amenity)
+
+# Eliminar universidades fuera del poligono
+uni_bogt = uni_bogt[-c(5,6,18,19,20,21,23,26,27,34),]
+
+# Visualizar un mapa que muestre todas las universidades
+leaflet() %>% addTiles() %>% addPolygons(data = uni_bogt, col = "blue")
+
+# Verificar que las proyecciones sean iguales
+st_crs(uni_bogt) == st_crs(test_final)
+
+# Medir la distancia entre hogares y universidades
+dis_unibogt <- st_distance(x = test_final, y = uni_bogt)
+head(dis_unibogt)
+
+# Encontrar la minima distancia entre cada hogar y una universidad (universidad mas cercana)
+min_unibogt = apply(dis_unibogt, 1, min)
+
+#Agregar la variable de distancia minima a la base de test
+test_final <- test_final %>%
+  mutate(mind_unibogt = min_unibogt)
