@@ -1185,36 +1185,91 @@ RMSE_forest <- sqrt(mean((datos_train$L_precio - pred_forest)^2))
 
 # Extraer predicciones
 datos_train$randomForest <- exp(predict(forest, newdata = datos_train))
+# Comparar los modelos ---- 
+df <- select(datos_train, c("precio","ols_vc", "bestSubsetS", "backwardS", "elasticNet_vc", "xgBoost", "randomForest"))
+modelos <- colnames(df)[2:length(df)]
 
-# * Superlearners ----
-y <- datos_train$L_precio
+for(i in 1:length(modelos)) {                           
+  p_dif <- df[,'precio'] - df[,i+1]                     
+  df[ , ncol(df) + 1] <- p_dif                  
+  colnames(df)[ncol(df)] <- paste0("p_dif_", i)
+  buy <- ifelse(df[,paste0("p_dif_", i)] <= 40000000, 1, 0)
+  df[ , ncol(df) + 1] <- buy                  
+  colnames(df)[ncol(df)] <- paste0("buy_", i)
+  num_houses <- sum(df[,paste0("buy_", i)])
+  df[ , ncol(df) + 1] <- num_houses                
+  colnames(df)[ncol(df)] <- paste0("num_houses_", i)
+  money_spend <- sum(df[which(df[,paste0("buy_", i)] == 1),modelos[i]])
+  df[ , ncol(df) + 1] <- money_spend               
+  colnames(df)[ncol(df)] <- paste0("money_spend_", i)
+  p_x_house <- df[,paste0("money_spend_", i)] / df[, paste0("num_houses_", i)]
+  df[ , ncol(df) + 1] <- p_x_house              
+  colnames(df)[ncol(df)] <- paste0("p_x_", i)
+}
 
-x <- datos_train %>% 
-  select(habitaciones, baños, superficie, universidad, centroComercial,
+resultados_modelos <- data.frame(modelos = rep(NA, length(modelos)),
+                                 money_spend = rep(NA, length(modelos)),
+                                 num_houses = rep(NA, length(modelos)),
+                                 p_x_house = rep(NA, length(modelos)))
+
+for (j in 1:length(modelos)) {
+  resultados_modelos[, 1] <- modelos
+  resultados_modelos[j, 2] <- df[1, paste0("money_spend_", j)]
+  resultados_modelos[j, 3] <- df[1, paste0("num_houses_", j)]
+  resultados_modelos[j, 4] <- df[1, paste0("p_x_", j)]
+}
+
+colnames(resultados_modelos)[which(colnames(resultados_modelos)=="money_spend")] = "dineroGastado"
+colnames(resultados_modelos)[which(colnames(resultados_modelos)=="num_houses")] = "propiedadesCompradas"
+colnames(resultados_modelos)[which(colnames(resultados_modelos)=="p_x_house")] = "precioXpropiedad"
+
+min(resultados_modelos$precioXpropiedad)
+
+write_xlsx(resultados_modelos, "views/resultados_modelos.xlsx")
+
+
+# Comparar error de prediccion promedio de los modelos ----
+MSE_modelos <- data.frame(matrix(NA, 6,2))
+colnames(MSE_modelos) <- c("Modelo", "MSE")
+
+MSE_modelos[1,1] = "M.1"
+MSE_modelos[2,1] = "M.2"
+MSE_modelos[3,1] = "M.3"
+MSE_modelos[4,1] = "M.4"
+MSE_modelos[5,1] = "M.5"
+MSE_modelos[6,1] = "M.6"
+
+
+MSE_modelos[1,2] = RMSE_lm_vc
+MSE_modelos[2,2] = RMSE_bestPrecio
+MSE_modelos[3,2] = RMSE_backward
+MSE_modelos[4,2] = RMSE_elasticPrecio
+MSE_modelos[5,2] = RMSE_xgboost
+MSE_modelos[6,2] = RMSE_forest
+
+
+write_xlsx(MSE_modelos, "views/MSE_modelos.xlsx")
+
+MSE_modelos <- ggplot(MSE_modelos, aes(x = Modelo, y = MSE, group = 1)) +
+  geom_line(color="navyblue")                              +
+  geom_point()                                             +
+  theme(axis.text.x = element_text(angle = 90))            +
+  labs(x = "Modelo", y = "RMSE")                           +
+  theme_test()
+
+ggsave("views/MSE_modelos.png", width = 8, height = 6, dpi = "print")
+
+
+# Prediccion modelo escogido ----
+datos_test <- test_final %>% 
+  select(property_id, habitaciones, baños, superficie, universidad, centroComercial,
          parqueadero, terrazaPatio, bogota, tipo_propiedad)
 
-Datos <- data.frame(x, y)
+datos_test$precio_predicho <- exp(predict(forest, newdata = datos_test, id = 1))
 
-#  1. Regresion lineal y random forest ----
 
-# Establecer la semilla para reproducibilidad 
-set.seed(1318)
+# Exportar tabla con predicciones finales 
+prediccion_final <- datos_test[,c("property_id", "precio_predicho")] 
 
-# Hacer las divisiones de la muestra
-folds = 5
-index <- split(1:nrow(datos_train), 1:folds)
-splt <- lapply(1:folds, function(ind) Datos[index[[ind]], ])
+write.csv(prediccion_final, "views/predictions_capacho_beltran_gonzalez.csv", row.names = FALSE)
 
-# Estimacion
-SL_1 <- SuperLearner(Y = y, X = data.frame(x),
-                     method = "method.NNLS", 
-                     SL.library = c("SL.lm", "SL.ranger"),
-                     cvControl = list(V = folds, validRows = index))
-SL_1
-
-# Ajuste del precio
-pred_SL_1 <- predict(SL_1, newdata = data.frame(datos_train), onlySL = T)$pred
-RMSE_SL_1 <- sqrt(mean((datos_train$L_precio - pred_SL_1)^2))
-
-# Extraer predicciones
-datos_train$sl_olsRandomForest <- exp(predict(SL_1, newdata = data.frame(datos_train), onlySL = T)$pred)
