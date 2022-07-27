@@ -516,3 +516,83 @@ p14 = "[:digit:]+[:space:]+m²"
 p15 = "[:digit:]+[:punct:]+[:digit:]+m²"
 p16 = "[:digit:]+m²"
 p17 = "área+[:space]+[:digit:]"
+
+# Crear variables
+test <- test %>% 
+  mutate(new_surface_desc = str_extract(string = test$description_2 , 
+                                        pattern = paste0(p1,"|",p2,"|",p3,"|",p4,"|",
+                                                         p5,"|",p6,"|",p7,"|",p8,"|",
+                                                         p9,"|",p10,"|",p11,"|",p12,"|",
+                                                         p13,"|",p14,"|",p15,"|",p16,"|",
+                                                         p17)))
+test <- test %>% 
+  mutate(new_surface_tit = str_extract(string = test$title_2 , 
+                                       pattern = paste0(p1,"|",p2,"|",p3,"|",p4,"|",
+                                                        p5,"|",p6,"|",p7,"|",p8,"|",
+                                                        p9,"|",p10,"|",p11,"|",p12,"|",
+                                                        p13,"|",p14,"|",p15,"|",p16,"|",
+                                                        p17)))
+
+test <- test %>% 
+  mutate(new_surface_desc = str_replace(new_surface_desc, "@|m²",""),
+         new_surface_tit = str_replace(new_surface_tit, "@|m²",""))
+
+test <- test %>% 
+  mutate(new_surface_desc_e = sub("\\..*", "", new_surface_desc),
+         new_surface_desc_d = ifelse(str_detect(string = new_surface_desc , 
+                                                pattern = "[:punct:]"), sub(".*\\.", "", new_surface_desc), NA),
+         new_surface_tit_e = sub("\\..*", "", new_surface_tit),
+         new_surface_tit_d = ifelse(str_detect(string = new_surface_tit , 
+                                               pattern = "[:punct:]"), sub(".*\\.", "", new_surface_tit), NA))
+
+test <- test %>% 
+  mutate(new_surface_desc_e = as.numeric(new_surface_desc_e),
+         new_surface_tit_e = as.numeric(new_surface_tit_e),
+         new_surface = pmax(new_surface_desc_e, new_surface_tit_e),
+         new_surface = ifelse(is.na(new_surface_desc_e) == T, new_surface_tit_e, new_surface_desc_e),
+         surface = ifelse(is.na(surface) == T, new_surface, surface),
+         surface = as.numeric(surface))
+
+test <- test %>% 
+  mutate(surface = ifelse(surface < 10 | surface > 7000, yes = NA, no = surface))
+
+# * Variable de baños ----
+# 1. Extraer informacion de descripcion 
+# Definir patrones
+pi = "[:digit:]+[:space:]+baño" 
+pii = "[:digit:]+baño" 
+piii = "[:digit:]+[:space:]+bao" 
+piv = "[:digit:]+bao" 
+pv = "un+[:space:]+baño" 
+pvi = "dos+[:space:]+baño" 
+pvii = "tres+[:space:]+baño" 
+pviii = "cuatro+[:space:]+baño" 
+pix = "cinco+[:space:]+baño" 
+px = "un+[:space:]+baño+[:space:]+y+[:space:]+un+[:space:]+baño" 
+
+# Crear variables
+test <- test %>% 
+  mutate(bathrooms_des = str_extract(string = test$description2, 
+                                     pattern = paste0(pi, "|", pii, "|", piii, "|", piv, "|",
+                                                      pv, "|", pvi, "|", pvii, "|", pviii, "|", 
+                                                      pix, "|", px)))
+test <- test %>% 
+  mutate(bathrooms_des = str_replace(string = test$bathrooms_des, 
+                                     pattern = "un", 
+                                     replacement = "1"))
+test <- test %>% 
+  mutate(bathrooms_des = str_replace(string = test$bathrooms_des, 
+                                     pattern = "dos", 
+                                     replacement = "2"))
+test <- test %>% 
+  mutate(bathrooms_des = str_replace(string = test$bathrooms_des, 
+                                     pattern = "tres", 
+                                     replacement = "3"))
+test <- test %>% 
+  mutate(bathrooms_des = str_replace(string = test$bathrooms_des, 
+                                     pattern = "cuatro", 
+                                     replacement = "4"))
+test <- test %>% 
+  mutate(bathrooms_des = str_replace(string = test$bathrooms_des, 
+                                     pattern = "quinto", 
+                                     replacement = "5"))
