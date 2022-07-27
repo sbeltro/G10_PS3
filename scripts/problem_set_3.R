@@ -170,3 +170,89 @@ train <- train %>%
   mutate(bathrooms_des = str_replace(string = train$bathrooms_des, 
                                      pattern = "quinto", 
                                      replacement = "5"))
+
+pxi = "[1-9]"
+
+train <- train %>% 
+  mutate(bathrooms_des2 = str_extract(string = train$bathrooms_des, 
+                                      pattern = pxi))
+
+train <- train %>% 
+  mutate(bathrooms_f = ifelse(is.na(bathrooms) == T,
+                              yes = bathrooms_des2,
+                              no = bathrooms))
+
+table(is.na(train$bathrooms)) # teniamos 30074 missings values
+table(is.na(train$bathrooms_f)) # ahora tenemos 15123 missing values
+
+train <- train %>% 
+  mutate(bathrooms_f = as.numeric(bathrooms_f))
+
+# Generar nuevas variables a partir de la descripcion ----
+# * Variable de Parqueadero ---- 
+# Definir patrones
+pa = "[:space:]+parqueadero" 
+pb = "[:space:]+gara" 
+pc = "[:space:]+parqueo" 
+pd = "[:punct:]+parqueadero" 
+pe = "[:punct:]+gara" 
+pf = "[:punct:]+parqueo" 
+
+# Crear variable 
+train <- train %>% 
+  mutate(parqueadero = str_extract(string = train$description2, 
+                                   pattern = paste0(pa, "|", pb, "|", pc, "|", pd, "|", 
+                                                    pe, "|", pf)))
+
+train <- train %>% 
+  mutate(parqueadero = str_replace_all(string = train$parqueadero, 
+                                       pattern = paste0(" ", "|", "[:space:]", "|", 
+                                                        "[:punct:]", "|", "[:blank:]"), 
+                                       repl=""))
+
+table(is.na(train$parqueadero)) #tenemos 36893 missings values
+
+# Imputar valores faltantes
+train <- train %>% 
+  mutate(parqueadero = ifelse(is.na(parqueadero) == T, 
+                              yes = 0,
+                              no = 1))
+
+# * Variable de Terraza/balcon/patio/jardin ---- 
+# Definir patrones
+pa1 = "[:space:]+terraza" 
+pb1 = "[:space:]+balc" 
+pc1 = "[:space:]+patio(?![:space:]+bonito)" 
+pd1 = "[:space:]+patio(?![:space:]+de+[:space:]+ropa)" 
+pe1 = "[:space:]+jard" 
+pf1 = "[:punct:]+terraza" 
+pg1 = "[:punct:]+balc" 
+ph1 = "[:punct:]+patio(?![:space:]+bonito)" 
+pi1 = "[:punct:]+patio(?![:space:]+de+[:space:]+ropa)" 
+pj1 = "[:punct:]+jard" 
+pk1 = "terraza" 
+pl1 = "balc" 
+pm1 = "patio(?![:space:]+bonito)" 
+pn1 = "patio(?![:space:]+de+[:space:]+ropa)" 
+po1 = "jard" 
+
+# Crear variable 
+train <- train %>% 
+  mutate(terrazaPatio = str_extract(string = train$description2, 
+                                    pattern = paste0(pa1, "|", pb1, "|", pc1, "|", pd1, "|", 
+                                                     pe1, "|", pf1, "|", pg1, "|", ph1, "|", 
+                                                     pi1, "|", pj1, "|", pk1, "|", pl1, "|",
+                                                     pm1, "|", pn1, "|", po1)))
+
+train <- train %>% 
+  mutate(terrazaPatio = str_replace_all(string = train$terrazaPatio, 
+                                        pattern=paste0(" ", "|", "[:space:]", "|", "[:punct:]", "|", "[:blank:]"), 
+                                        repl=""))
+
+table(is.na(train$terrazaPatio)) #tenemos 48427 missing values
+
+# Imputar valores faltantes
+train <- train %>% 
+  mutate(terrazaPatio = ifelse(is.na(terrazaPatio) == T, 
+                               yes = 0,
+                               no = 1))
