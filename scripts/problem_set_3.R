@@ -998,3 +998,87 @@ ggplot() +
         panel.grid.major = element_line(color = "azure4", size = 0.1), 
         panel.grid.minor = element_line(color = "azure4", size = 0.1), axis.text = element_text(size = 6))   
 
+ggsave("views/Mapa_2.png", width = 6, height = 6, dpi = "print")
+
+# Crear vectores para colores y figuras en el mapa
+lcha <- c("Chapinero" = "black", "Hogares" = "darksalmon", "Universidades" = "dodgerblue4", "Centros C." = "darkmagenta")
+scha <- c("Chapinero" = 0, "Hogares" = 20, "Universidades" = 0, "Centros C." = 0)
+
+# Graficar y guardar el mapa de Chapinero con los hogares, universidades y centros comerciales dentro de la localidad
+ggplot() + 
+  geom_sf(data = chapinero, aes(color = "Chapinero")) +
+  geom_sf(data = chapinero_h, aes(color = "Hogares", shape = "Hogares"), size = 1) + 
+  geom_sf(data = uni_bogt, aes(color = "Universidades")) +
+  geom_sf(data = cc_bogt, aes(color = "Centros C."))+
+  labs(color = "Leyenda-Color", shape = "Figura") +
+  scale_color_manual(values = lcha) + 
+  scale_shape_manual(values = scha)+
+  annotation_north_arrow(location = "br", which_north = "true", style = north_arrow_fancy_orienteering) +
+  theme_bw() +
+  theme(axis.title = element_blank(), 
+        panel.grid.major = element_line(color = "azure4", size=0.1), 
+        panel.grid.minor = element_line(color = "azure4", size=0.1), axis.text =element_text(size = 6))   
+
+ggsave("views/Mapa_3.png", width = 6, height = 6, dpi = "print")
+
+# Crear vectores para colores y figuras en el mapa
+lpob <- c("El Poblado" = "black", "Hogares" = "darksalmon", "Universidades" = "dodgerblue4", "Centros C." = "darkmagenta")
+spob <- c("El Poblado" = 0, "Hogares" = 20, "Universidades" = 0, "Centros C." = 0)
+
+# Graficar y guardar el mapa de El Poblado con los hogares, universidades y centros comerciales dentro de la localidad
+ggplot() + 
+  geom_sf(data = poblado, aes(color = "El Poblado")) +
+  geom_sf(data = poblado_h, aes(color = "Hogares", shape = "Hogares"), size = 1) + 
+  geom_sf(data = uni_medt, aes(color = "Universidades")) +
+  geom_sf(data = cc_medt, aes(color = "Centros C.")) +
+  labs(color = "Leyenda-Color", shape = "Figura") +
+  scale_color_manual(values = lpob) + 
+  scale_shape_manual(values = spob)+
+  annotation_north_arrow(location = "bl", which_north = "true", style = north_arrow_fancy_orienteering) +
+  theme_bw() +
+  theme(axis.title = element_blank(), 
+        panel.grid.major = element_line(color = "azure4", size = 0.1), 
+        panel.grid.minor = element_line(color = "azure4", size = 0.1), axis.text = element_text(size = 6))   
+
+ggsave("views/Mapa_4.png", width = 6, height = 6, dpi = "print")
+
+
+
+# Modelos  ----
+
+# Crear variables adicionales 
+train_final <- train_final %>% 
+  mutate(L_precio = ifelse(precio == 0, 
+                           yes = 0,
+                           no  = log(precio)))
+
+train_final <- train_final %>%
+  mutate(tipo_propiedad = ifelse(property_type == "Casa", 1, 0))
+
+test_final <- test_final %>%
+  mutate(tipo_propiedad = ifelse(property_type == "Casa", 1, 0))
+
+# Seleccionar variables de interes para las estimaciones
+variables_m <- train_final %>% 
+  select(L_precio, habitaciones, baños, superficie, universidad, centroComercial,
+         parqueadero, terrazaPatio, bogota, tipo_propiedad)
+
+datos_train <- train_final %>% 
+  select(property_id, precio, L_precio, habitaciones, baños, superficie, universidad, centroComercial,
+         parqueadero, terrazaPatio, bogota, tipo_propiedad)
+
+# * Regresion lineal y validacion cruzada en K-conjuntos (K-fold Cross-Validation) ----
+lm_vc <- train(L_precio ~ habitaciones + baños + superficie + universidad + centroComercial 
+               + parqueadero + terrazaPatio + bogota + tipo_propiedad,
+               data = datos_train,
+               trControl = trainControl(method = "cv", number = 5),
+               method = "lm")
+lm_vc
+summary(lm_vc)
+
+# Ajuste del modelo
+pred_lm_vc <- predict(lm_vc, newdata = datos_train, id = 1)
+RMSE_lm_vc <- sqrt(mean((datos_train$L_precio - pred_lm_vc)^2))
+
+# Extraer predicciones 
+datos_train$ols_vc <- exp(predict(lm_vc, newdata = datos_train, id = 1))
