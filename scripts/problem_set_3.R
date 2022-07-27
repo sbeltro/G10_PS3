@@ -849,3 +849,75 @@ min_ccmedt <- apply(dis_ccmedt, 1, min)
 #Agregar la variable de distancia minima a la base de test
 test_final <- test_final %>%
   mutate(mind_ccmedt = min_ccmedt)
+
+#  2.3 Bogota y Medellin 
+test_final <- test_final %>% 
+  mutate(dismin_cc = ifelse(l3 == "Bogotá D.C", 
+                            yes = mind_ccbogt,
+                            no = mind_ccmedt))
+
+# Base final test ----
+colnames(test_final)[which(colnames(test_final)=="price")] = "precio"
+colnames(test_final)[which(colnames(test_final)=="bedrooms")] = "habitaciones"
+colnames(test_final)[which(colnames(test_final)=="bathrooms_final")] = "baños"
+colnames(test_final)[which(colnames(test_final)=="surface_final")] = "superficie"
+colnames(test_final)[which(colnames(test_final)=="dismin_uni")] = "universidad"
+colnames(test_final)[which(colnames(test_final)=="dismin_cc")] = "centroComercial"
+colnames(test_final)[which(colnames(test_final)=="parqueadero")] = "parqueadero"
+colnames(test_final)[which(colnames(test_final)=="terrazaPatio")] = "terrazaPatio"
+
+variables_categoricas <- c("bogota", "parqueadero", "terrazaPatio")
+
+test_final <- as.data.frame(test_final)
+for (i in variables_categoricas){
+  test_final[,i] = as.numeric(test_final[,i])
+  test_final[,i] = as.logical(test_final[,i])
+}
+
+variables_numericas <- c("baños", "habitaciones", "superficie",
+                         "universidad", "centroComercial")
+
+test_final <- as.data.frame(test_final)
+for (i in variables_numericas){
+  test_final[,i] = as.numeric(test_final[,i])
+}
+
+saveRDS(test_final, "stores/test_final.rds")
+
+
+
+
+# Estadísticas Descriptivas ----
+# Cargar bases de datos
+train_final <- readRDS("stores/train_final.rds")
+test_final <- readRDS("stores/test_final.rds")
+
+# Train
+train_final <- train_final %>% 
+  mutate(parqueadero = as.logical(parqueadero))
+
+ved_train <- c("precio", "baños", "habitaciones", "superficie", "parqueadero", "terrazaPatio", "universidad", "centroComercial")
+
+tab_ved <- CreateTableOne(data = train_final,
+                          strata = "l3",
+                          vars = ved_train,
+                          argsApprox = list(correct = TRUE))
+
+ex_tab_ved <- print(tab_ved, quote = FALSE, noSpaces = TRUE, printToggle = FALSE) %>%
+  as_tibble()
+write_xlsx(ex_tab_ved, "views/ed_train.xlsx")
+
+# Test 
+test_final <- test_final %>% 
+  mutate(parqueadero = as.logical(parqueadero))
+
+ved_test <- c("baños", "habitaciones", "superficie", "parqueadero", "terrazaPatio", "universidad", "centroComercial")
+
+tab_ved2 <- CreateTableOne(data = test_final,
+                           strata = "l3",
+                           vars = ved_test,
+                           argsApprox = list(correct = TRUE))
+
+ex_tab_ved2 <- print(tab_ved2, quote = FALSE, noSpaces = TRUE, printToggle = FALSE) %>%
+  as_tibble()
+write_xlsx(ex_tab_ved2, "views/ed_test.xlsx")
