@@ -1271,5 +1271,4 @@ datos_test$precio_predicho <- exp(predict(forest, newdata = datos_test, id = 1))
 # Exportar tabla con predicciones finales 
 prediccion_final <- datos_test[,c("property_id", "precio_predicho")] 
 
-write.csv(prediccion_final, "views/predictions_capacho_beltran_gonzalez.csv", row.names = FALSE)
-
+write.csv(prediccion_final, "document/predictions_capacho_beltran_gonzalez.csv", row.names = FALSE)
