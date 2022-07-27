@@ -338,3 +338,91 @@ min_unibog = apply(dis_unibog, 1, min)
 # Agregar la variable de distancia minima a la base de train
 train_final <- train_final %>% 
   mutate(mind_unibog = min_unibog)
+
+#  1.2 Medellin
+# Crear un objeto de OSM que contega las universidades (incluyendo institutos tecnicos) dentro del poligono de Medellin 
+osm_unimed = opq(bbox = getbb("Medellín Colombia")) %>%
+  add_osm_feature(key="amenity", value = "university")
+
+# Extraer del objeto los features de universidades (id, nombre y amenity) y guardar los poligonos en nuevo objeto
+osm_unimed_sf = osm_unimed %>% osmdata_sf()
+uni_med = osm_unimed_sf$osm_polygons  %>% select(osm_id, name, amenity)
+
+# Visualizar un mapa que muestre todas las universidades
+leaflet() %>% addTiles() %>% addPolygons(data = uni_med, col="blue")
+
+# Verificar que las proyecciones sean iguales
+st_crs(uni_med) == st_crs(train_final)
+
+# Medir la distancia entre hogares y universidades
+dis_unimed <- st_distance(x = train_final,y = uni_med)
+tail(dis_unimed)
+
+# Encontrar la minima distancia entre cada hogar y una universidad (universidad mas cercana)
+min_unimed = apply(dis_unimed, 1, min)
+
+#Agregar la variable de distancia minima a la base de train
+train_final <- train_final %>% 
+  mutate(mind_unimed = min_unimed)
+
+#  1.3 Bogota y Medellin 
+# Analizar cuantos hogares pertenecen a Bogota y cuantos a Medellin
+table(train_final$l3)
+
+train_final <- train_final %>% 
+  mutate(dismin_uni = ifelse(l3 == "Bogotá D.C", 
+                             yes = mind_unibog,
+                             no = mind_unimed))
+
+# * Variable de Centros comerciales (CC) ---- 
+#  2.1 Bogota
+# Crear un objeto de OSM que contega los centros comerciales dentro del poligono de Bogota
+osm_ccbog = opq(bbox = getbb("Bogotá Colombia")) %>%
+  add_osm_feature(key = "shop", value = "mall")
+
+# Extraer del objeto los features de centros comerciales (id, nombre y shop) y guardar los poligonos en nuevo objeto
+osm_ccbog_sf = osm_ccbog %>% osmdata_sf()
+cc_bog = osm_ccbog_sf$osm_polygons  %>% select(osm_id, name, shop)
+
+# Visualizar un mapa que muestre todos los centros comerciales
+leaflet() %>% addTiles() %>% addPolygons(data = cc_bog, col = "black")
+
+# Verificar que las proyecciones sean iguales
+st_crs(cc_bog) == st_crs(train_final)
+
+# Medir la distancia entre hogares y centros comerciales
+dis_ccbog <- st_distance(x = train_final, y = cc_bog)
+head(dis_ccbog)
+
+# Encontrar la minima distancia entre cada hogar y un centro comercial (CC mas cercano)
+min_ccbog = apply(dis_ccbog, 1, min)
+
+# Agregar la variable de distancia minima a la base de train
+train_final <- train_final %>%
+  mutate(mind_ccbog = min_ccbog)
+
+#  2.2 Medellin 
+# Crear un objeto de OSM que contega los centros comerciales dentro del polígono de Medellín 
+osm_ccmed = opq(bbox = getbb("Medellín Colombia")) %>%
+  add_osm_feature(key = "shop", value = "mall")
+
+# Extraer del objeto los features de centros comerciales (id, nombre y shop) y guardar los poligonos en nuevo objeto
+osm_ccmed_sf = osm_ccmed %>% osmdata_sf()
+cc_med = osm_ccmed_sf$osm_polygons  %>% select(osm_id, name, shop)
+
+# Visualizar un mapa que muestre todos los centros comerciales
+leaflet() %>% addTiles() %>% addPolygons(data = cc_med, col = "black")
+
+# Verificar que las proyecciones sean iguales
+st_crs(cc_med) == st_crs(train_final)
+
+# Medir la distancia entre hogares y centros comerciales 
+dis_ccmed <- st_distance(x = train_final, y = cc_med)
+tail(dis_ccmed)
+
+# Encontrar la minima distancia entre cada hogar y un centro comercial (CC mas cercano)
+min_ccmed = apply(dis_ccmed, 1, min)
+
+# Agregar la variable de distancia minima a la base de train
+train_final <- train_final %>%
+  mutate(mind_ccmed = min_ccmed)
