@@ -426,3 +426,93 @@ min_ccmed = apply(dis_ccmed, 1, min)
 # Agregar la variable de distancia minima a la base de train
 train_final <- train_final %>%
   mutate(mind_ccmed = min_ccmed)
+
+#  2.3 Bogota y Medellin
+train_final <- train_final %>% 
+  mutate(dismin_cc = ifelse(l3 == "Bogotá D.C", 
+                            yes = mind_ccbog,
+                            no = mind_ccmed))
+
+# Base final train ----
+colnames(train_final)[which(colnames(train_final)=="price")] = "precio"
+colnames(train_final)[which(colnames(train_final)=="bedrooms")] = "habitaciones"
+colnames(train_final)[which(colnames(train_final)=="bathrooms_final")] = "baños"
+colnames(train_final)[which(colnames(train_final)=="surface_final")] = "superficie"
+colnames(train_final)[which(colnames(train_final)=="dismin_uni")] = "universidad"
+colnames(train_final)[which(colnames(train_final)=="dismin_cc")] = "centroComercial"
+colnames(train_final)[which(colnames(train_final)=="parqueadero")] = "parqueadero"
+colnames(train_final)[which(colnames(train_final)=="terrazaPatio")] = "terrazaPatio"
+
+variables_categoricas <- c("bogota", "parqueadero", "terrazaPatio")
+
+train_final <- as.data.frame(train_final)
+for (i in variables_categoricas){
+  train_final[,i] = as.numeric(train_final[,i])
+  train_final[,i] = as.logical(train_final[,i])
+}
+
+variables_numericas <- c("precio", "baños", "habitaciones", "superficie",
+                         "universidad", "centroComercial")
+
+train_final <- as.data.frame(train_final)
+for (j in variables_numericas){
+  train_final[,j] = as.numeric(train_final[,j])
+}
+
+saveRDS(train_final, "stores/train_final.rds")
+
+
+
+# * Test ----
+
+# Cargar la base de datos
+test <- readRDS("stores/test.rds")
+
+## Convertir la base a clase sf
+test <- st_as_sf(test, 
+                 coords = c("lon", "lat"),
+                 crs = 4326)
+
+#Verificar que la clase 
+class(test)
+
+# Limpieza de la base ----
+# * Variable dummy de ciudad ----
+test <- test %>% 
+  mutate(bogota = ifelse(l3 == "Bogotá D.C", 
+                         yes = 1,
+                         no = 0))
+
+# * Variable de superficie de vivienda en metros cuadrados ----
+# 1. Imputar valores 
+test <- test %>% 
+  mutate(surface = ifelse(is.na(surface_total) == T, surface_covered, surface_total),
+         surface = ifelse(is.na(surface) == T, pmax(surface_total, surface_covered), surface))
+
+# 2. Extraer informacion de descripcion y titulo 
+test <- test %>% 
+  mutate(title = str_to_lower(string = title),
+         description2 = str_to_lower(string = description),
+         title = str_replace_all(string = title , pattern = paste0(":","|",",",".") , replacement = ""),
+         description3 = str_replace_all(string = description2 , pattern = paste0(":","|",",",".") , replacement = ""),
+         title_2 = str_replace_all(string = title , pattern = paste0("mt","|","metr","|","mts","|","m2","|","m²","|","mâ²","|","m ", "|", "metrs2", "|", "msts2", "|", "m^2") , replacement = "@"),
+         description_2 = str_replace_all(string = description3, pattern = paste0("mt","|","metr","|","mts","|","m2","|","m²","mâ²","|","m ", "|", "metrs2", "|", "msts2", "|", "m^2") , replacement = "@"))
+
+# Crear patrones
+p1 = "[:space:]+[:digit:]+[:punct:]+[:digit:]+[:space:]+@" 
+p2 = "[:space:]+[:digit:]+[:space:]+@"
+p3 = "[:space:]+[:digit:]+[:punct:]+[:digit:]+@"
+p4 = "[:space:]+[:digit:]+@"
+p5 = "[:digit:]+[:punct:]+[:digit:]+[:space:]+@"
+p6 = "[:digit:]+[:space:]+@"
+p7 = "[:digit:]+[:punct:]+[:digit:]+@"
+p8 = "[:digit:]+@"
+p9 = "[:space:]+[:digit:]+[:punct:]+[:digit:]+[:space:]+m²" 
+p10 = "[:space:]+[:digit:]+[:space:]+m²"
+p11 = "[:space:]+[:digit:]+[:punct:]+[:digit:]+m²"
+p12 = "[:space:]+[:digit:]+m²"
+p13 = "[:digit:]+[:punct:]+[:digit:]+[:space:]+m²"
+p14 = "[:digit:]+[:space:]+m²"
+p15 = "[:digit:]+[:punct:]+[:digit:]+m²"
+p16 = "[:digit:]+m²"
+p17 = "área+[:space]+[:digit:]"
