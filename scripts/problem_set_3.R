@@ -256,3 +256,85 @@ train <- train %>%
   mutate(terrazaPatio = ifelse(is.na(terrazaPatio) == T, 
                                yes = 0,
                                no = 1))
+
+# * Imputar valores faltantes con informacion de las manzanas del DANE ----
+sf_use_s2(FALSE)
+
+mnz_bog <- readRDS("stores/mnz_bog.rds")
+mnz_bog_f <- subset(mnz_bog, select = c("MANZ_CCNCT","geometry"))
+colnames(mnz_bog_f)[1] <- c("MANZ_CCNCT_b")
+
+mnz_med <- readRDS("stores/mnz_med.rds")
+mnz_med_f <- subset(mnz_med, select = c("MANZ_CCNCT","geometry"))
+colnames(mnz_med_f)[1] <- c("MANZ_CCNCT_m")
+
+train_bog = st_join(x = train, y = mnz_bog_f)
+train_bog_med = st_join(x = train_bog, y = mnz_med_f)
+
+train_bog_med <- train_bog_med %>% 
+  mutate(MANZ_CCNCT = ifelse(l3 == "Bogotá D.C", 
+                             yes = MANZ_CCNCT_b,
+                             no = MANZ_CCNCT_m))
+
+train_bog_med = train_bog_med %>%
+  group_by(MANZ_CCNCT) %>%
+  mutate(surface_2 = median(surface, na.rm = T),
+         bathrooms_2 = median(bathrooms_f, na.rm = T))
+
+base <- as_tibble(train_bog_med)
+
+# Imputar valores faltantes
+base <- base %>% 
+  mutate(surface_f2 = ifelse(is.na(surface) == T, 
+                             yes = surface_2,
+                             no = surface),
+         bathrooms_f2 = ifelse(is.na(bathrooms_f) == T, 
+                               yes = bathrooms_2,
+                               no = bathrooms_f))
+
+# Base final (Version 1) 
+table(is.na(base$surface_f2))
+table(is.na(base$bathrooms_f2))
+
+# Imputar valores faltantes y obtener base final preliminar 
+train_final <- base %>% 
+  mutate(surface_final = ifelse(is.na(surface_f2) == T, 
+                                yes = median(surface_f2, na.rm = TRUE),
+                                no = surface_f2),
+         bathrooms_final = ifelse(is.na(bathrooms_f2) == T, 
+                                  yes = median(bathrooms_f2, na.rm = TRUE),
+                                  no = bathrooms_f2))
+
+table(is.na(train_final$surface_final))
+table(is.na(train_final$bathrooms_final))
+
+train_final <- st_as_sf(train_final,
+                        crs = 4326)
+
+# Generar nuevas variables de Open Street Map ---- 
+# * Variable de Universidades ----
+#  1.1 Bogota 
+# Crear un objeto de OSM que contega las universidades (incluyendo institutos tecnicos) dentro del poligono de Bogota 
+osm_unibog = opq(bbox = getbb("Bogotá Colombia")) %>%
+  add_osm_feature(key = "amenity", value = "university")
+
+# Extraer del objeto los features de universidades (id, nombre y amenity) y guardar los poligonos en nuevo objeto
+osm_unibog_sf = osm_unibog %>% osmdata_sf()
+uni_bog = osm_unibog_sf$osm_polygons  %>% select(osm_id, name, amenity)
+
+#Visualizar un mapa que muestre todas las universidades
+leaflet() %>% addTiles() %>% addPolygons(data = uni_bog, col = "blue")
+
+# Verificar que las proyecciones sean iguales
+st_crs(uni_bog) == st_crs(train_final)
+
+# Medir la distancia entre hogares y  universidades 
+dis_unibog <- st_distance(x = train_final, y = uni_bog)
+head(dis_unibog)
+
+# Encontrar la minima distancia entre cada hogar y una universidad (universidad mas cercana)
+min_unibog = apply(dis_unibog, 1, min)
+
+# Agregar la variable de distancia minima a la base de train
+train_final <- train_final %>% 
+  mutate(mind_unibog = min_unibog)
