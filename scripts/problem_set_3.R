@@ -921,3 +921,80 @@ tab_ved2 <- CreateTableOne(data = test_final,
 ex_tab_ved2 <- print(tab_ved2, quote = FALSE, noSpaces = TRUE, printToggle = FALSE) %>%
   as_tibble()
 write_xlsx(ex_tab_ved2, "views/ed_test.xlsx")
+
+# Graficas ----
+# Crear el poligono de Bogota a traves del feature "boundary" y el tag "administrative" 
+bogota <- getbb(place_name = "Bogotá Colombia", 
+                featuretype = "boundary:administrative", 
+                format_out = "sf_polygon")%>% .$multipolygon
+
+# Hacer un crop de la base train, para solo obtener los hogares de Bogota
+bogota_h <- st_crop(train_final, bogota)
+
+# Crear el poligono de Chapinero a través del feature "boundary" y el tag "administrative"
+chapinero <- getbb(place_name = "UPZs Localidad Chapinero", 
+                   featuretype = "boundary:administrative", 
+                   format_out = "sf_polygon") %>% .$multipolygon
+
+# Hacer un crop de la base train, para solo obtener los hogares de Chapinero
+chapinero_h <- st_crop(test_final, chapinero)
+
+# Crear el poligono de Medellin a traves del feature "boundary" y el tag "administrative" 
+medellin <- getbb(place_name = " Medellín Colombia", 
+                  featuretype = "boundary:administrative", 
+                  format_out = "sf_polygon")
+
+# Eliminar polígono que no pertenece a medellin
+medellin = medellin[-c(2),]
+
+# Hacer un crop de la base train, para solo obtener los hogares de Medellin
+medellin_h <- st_crop(train_final, medellin)
+
+# Crear el poligono de El Poblado a traves del feature "boundary" y el tag "administrative" 
+poblado <- getbb(place_name = "Comuna 14 - El Poblado", 
+                 featuretype = "boundary:administrative", 
+                 format_out = "sf_polygon")
+
+# Hacer un crop de la base train, para solo obtener los hogares de El Poblado
+poblado_h <- st_crop(test_final, poblado)
+
+# Crear vectores para colores y figuras en el mapa
+lbog <- c("Bogotá" = "black", "Hogares" = "darksalmon", "Universidades" = "dodgerblue4", "Centros C." = "darkmagenta")
+sbog <- c("Bogotá" = 0, "Hogares" = 20, "Universidades" = 0, "Centros C." = 0)
+
+# Graficar y guardar el mapa de Bogota con los hogares, universidades y centros comerciales dentro de la ciudad
+ggplot() + 
+  geom_sf(data = bogota, aes(color = "Bogotá")) +
+  geom_sf(data = bogota_h, aes(color = "Hogares", shape = "Hogares"), size = 1) + 
+  geom_sf(data = uni_bog, aes(color = "Universidades")) +
+  geom_sf(data = cc_bog, aes(color = "Centros C.")) +
+  labs(color = "Leyenda-Color", shape = "Figura") +
+  scale_color_manual(values = lbog) + 
+  scale_shape_manual(values = sbog) +
+  annotation_north_arrow(location = "bl", which_north = "true", style = north_arrow_fancy_orienteering) +
+  theme_bw() + 
+  theme(axis.title = element_blank(), 
+        panel.grid.major = element_line(color = "azure4", size = 0.1), 
+        panel.grid.minor = element_line(color = "azure4", size = 0.1), axis.text = element_text(size = 6))   
+
+ggsave("views/Mapa_1.png", width = 6, height = 6, dpi = "print")
+
+# Crear vectores para colores y figuras en el mapa
+lmed <- c("Medellín" = "black", "Hogares" = "darksalmon", "Universidades" = "dodgerblue4", "Centros C." = "darkmagenta")
+smed <- c("Medellín" = 0, "Hogares" = 20, "Universidades" = 0, "Centros C." = 0)
+
+# Graficar y guardar el mapa de Medellin con los hogares, universidades y centros comerciales dentro de la ciudad
+ggplot() + 
+  geom_sf(data = medellin, aes(color = "Medellín")) +
+  geom_sf(data = medellin_h, aes(color = "Hogares", shape="Hogares"), size = 1) + 
+  geom_sf(data = uni_med, aes(color = "Universidades")) +
+  geom_sf(data = cc_med, aes(color = "Centros C."))+
+  labs(color = "Leyenda-Color", shape = "Figura") +
+  scale_color_manual(values = lmed) + 
+  scale_shape_manual(values = smed) +
+  annotation_north_arrow(location = "bl", which_north = "true", style = north_arrow_fancy_orienteering) +
+  theme_bw() +
+  theme(axis.title = element_blank(), 
+        panel.grid.major = element_line(color = "azure4", size = 0.1), 
+        panel.grid.minor = element_line(color = "azure4", size = 0.1), axis.text = element_text(size = 6))   
+
