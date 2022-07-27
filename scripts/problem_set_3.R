@@ -1082,3 +1082,88 @@ RMSE_lm_vc <- sqrt(mean((datos_train$L_precio - pred_lm_vc)^2))
 
 # Extraer predicciones 
 datos_train$ols_vc <- exp(predict(lm_vc, newdata = datos_train, id = 1))
+
+# * Best Subset Selection ----
+bestPrecio <- regsubsets(L_precio ~ ., 
+                         method = "exhaustive", 
+                         data = variables_m)
+summary(bestPrecio)
+
+predict.regsubsets = function(object, newdata, id, ...) {
+  form = as.formula(object$call[[2]])
+  mat = model.matrix(form, newdata)
+  coefi = coef(object, id = id)
+  mat[, names(coefi)] %*% coefi
+}
+
+# Ajuste del modelo
+pred_bestPrecio <- predict.regsubsets(bestPrecio, newdata = variables_m, id = 1)
+RMSE_bestPrecio <- sqrt(mean((datos_train$L_precio - pred_bestPrecio)^2))
+
+# Extraer predicciones 
+datos_train$bestSubsetS <- exp(predict.regsubsets(bestPrecio, newdata = variables_m, id = 1))
+
+# * Backward Stepwise Selection ----
+backwardPrecio <- train(L_precio ~ .,
+                        data = variables_m,
+                        method="leapBackward",
+                        trControl = trainControl(method = "cv", number=5))
+backwardPrecio
+summary(backwardPrecio$finalModel)
+
+# Ajuste del modelo
+pred_backward <- predict(backwardPrecio, newdata = variables_m)
+RMSE_backward <- sqrt(mean((datos_train$L_precio - pred_backward)^2))
+
+# Extraer predicciones
+datos_train$backwardS <- exp(predict(backwardPrecio, newdata = variables_m))
+
+# * Elastic net y validacion cruzada en K-conjuntos (K-fold Cross-Validation) ----
+elasticPrecio <- train(L_precio ~ habitaciones + baños + superficie + universidad + centroComercial 
+                       + parqueadero + terrazaPatio + bogota + tipo_propiedad, 
+                       data       = datos_train, 
+                       method     = "glmnet",
+                       trControl  = trainControl("cv", number = 5),
+                       preProcess = c("center", "scale"))
+elasticPrecio
+
+elasticPreciobl <- train(L_precio ~ habitaciones + baños + superficie + universidad + centroComercial 
+                         + parqueadero + terrazaPatio + bogota + tipo_propiedad,
+                         data       = datos_train, 
+                         method     = "glmnet",
+                         trControl  = trainControl("cv", number = 5),
+                         tuneGrid   = expand.grid(alpha = 0.1, lambda = 0.001013273),
+                         preProcess = c("center", "scale"))
+elasticPreciobl
+
+# Ajuste del modelo
+RMSE_elasticPrecio <- elasticPreciobl[["results"]][["RMSE"]]
+
+# Extraer predicciones
+datos_train$elasticNet_vc <- exp(predict(elasticPreciobl, newdata = datos_train))
+
+# * XGBoost ----
+set.seed(1318)
+grid_default <- expand.grid(nrounds = c(100, 150),
+                            max_depth = c(4, 6, 8),
+                            eta = c(0.01, 0.3, 0.5),
+                            gamma = c(0,  1),
+                            min_child_weight = c(10, 25, 50),
+                            colsample_bytree = c(0.7),
+                            subsample = c(0.6))
+
+xgboost <- train(L_precio ~ habitaciones + baños + superficie + universidad + centroComercial 
+                 + parqueadero + terrazaPatio + bogota + tipo_propiedad,
+                 data = datos_train,
+                 method = "xgbTree",
+                 trControl = trainControl("cv", number = 5),
+                 tuneGrid = grid_default,
+                 verbosity = 0)
+xgboost
+
+# Ajuste del modelo
+pred_xgb <- predict(xgboost, newdata = datos_train)
+RMSE_xgboost <- sqrt(mean((datos_train$L_precio - pred_xgb)^2))
+
+# Extraer predicciones
+datos_train$xgBoost <- exp(predict(xgboost, newdata = datos_train))
