@@ -1167,3 +1167,54 @@ RMSE_xgboost <- sqrt(mean((datos_train$L_precio - pred_xgb)^2))
 
 # Extraer predicciones
 datos_train$xgBoost <- exp(predict(xgboost, newdata = datos_train))
+
+# * Random forest ----
+set.seed(1318)
+forest <- train(L_precio ~ habitaciones + baños + superficie + universidad + centroComercial 
+                + parqueadero + terrazaPatio + bogota + tipo_propiedad,
+                data = datos_train,
+                method = "rf",
+                trControl = trainControl("cv", number = 5),
+                metric="RMSE",
+                ntrees = 100)
+forest
+
+# Ajuste del modelo
+pred_forest <- predict(forest, newdata = datos_train)
+RMSE_forest <- sqrt(mean((datos_train$L_precio - pred_forest)^2))
+
+# Extraer predicciones
+datos_train$randomForest <- exp(predict(forest, newdata = datos_train))
+
+# * Superlearners ----
+y <- datos_train$L_precio
+
+x <- datos_train %>% 
+  select(habitaciones, baños, superficie, universidad, centroComercial,
+         parqueadero, terrazaPatio, bogota, tipo_propiedad)
+
+Datos <- data.frame(x, y)
+
+#  1. Regresion lineal y random forest ----
+
+# Establecer la semilla para reproducibilidad 
+set.seed(1318)
+
+# Hacer las divisiones de la muestra
+folds = 5
+index <- split(1:nrow(datos_train), 1:folds)
+splt <- lapply(1:folds, function(ind) Datos[index[[ind]], ])
+
+# Estimacion
+SL_1 <- SuperLearner(Y = y, X = data.frame(x),
+                     method = "method.NNLS", 
+                     SL.library = c("SL.lm", "SL.ranger"),
+                     cvControl = list(V = folds, validRows = index))
+SL_1
+
+# Ajuste del precio
+pred_SL_1 <- predict(SL_1, newdata = data.frame(datos_train), onlySL = T)$pred
+RMSE_SL_1 <- sqrt(mean((datos_train$L_precio - pred_SL_1)^2))
+
+# Extraer predicciones
+datos_train$sl_olsRandomForest <- exp(predict(SL_1, newdata = data.frame(datos_train), onlySL = T)$pred)
